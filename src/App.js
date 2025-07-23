@@ -35,6 +35,13 @@ function App() {
     }
   };
 
+  // Handle Enter key press
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && url.trim()) {
+      handleSearch();
+    }
+  };
+
   // Search YouTube videos
   const handleSearch = async () => {
     if (!url.trim()) return;
@@ -150,6 +157,7 @@ function App() {
               placeholder="Paste YouTube or YouTube Music URL"
               value={url}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               className="textbox"
             />
             <div className="btn">
