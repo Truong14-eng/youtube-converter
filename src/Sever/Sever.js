@@ -17,6 +17,10 @@ app.use(cors({
   allowedHeaders: ["Content-Type"],
 }));
 
+// In-memory cache for search results
+const searchCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 // ✅ Log all requests
 app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url}`);
@@ -42,17 +46,29 @@ app.use(bodyParser.json());
 
 // Search route
 app.post("/search", async (req, res) => {
-  const { query } = req.body;
+  const { query, page = 1 } = req.body;
 
   if (!query || typeof query !== "string") {
     console.error("Invalid search query:", query);
     return res.status(400).json({ error: "Missing or invalid query" });
   }
 
+  // Check cache
+  const cacheKey = `${query}:${page}`;
+  const cachedResult = searchCache.get(cacheKey);
+  if (cachedResult && cachedResult.timestamp + CACHE_DURATION > Date.now()) {
+    console.log(`Cache hit for "${query}" (page ${page})`);
+    return res.status(200).json({ results: cachedResult.results, page });
+  }
+
   try {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1280,720'],
+    });
     const page = await browser.newPage();
-       await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
       waitUntil: "networkidle2",
       timeout: 30000,
     });
@@ -62,27 +78,36 @@ app.post("/search", async (req, res) => {
       console.error("Failed to find video elements:", err.message);
     });
 
-    await page.waitForSelector("yt-image img", { timeout: 10000 }).catch(err => {
-      console.error("Failed to find thumbnail images:", err.message);
-    });
-
-    // Scroll multiple times to load dynamic content
-    for (let i = 0; i < 3; i++) {
+    // Scroll to load more content (increased to 10 iterations)
+    for (let i = 0; i < 10; i++) {
       await page.evaluate(() => window.scrollBy(0, 1000));
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // Extract video data
+    // Click "Load more" button up to 3 times if present
+    for (let i = 0; i < 3; i++) {
+      const loadMoreButton = await page.$('button[aria-label*="Load more"]');
+      if (loadMoreButton) {
+        console.log(`Clicking 'Load more' button (attempt ${i + 1})`);
+        await loadMoreButton.click();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        break;
+      }
+    }
+
+    // Extract video data with deduplication
     const results = await page.evaluate(() => {
       const videos = Array.from(document.querySelectorAll("ytd-video-renderer, ytd-playlist-renderer"));
-      return videos.slice(0, 10).map((video) => {
+      const seenIds = new Set();
+      return videos.map((video, index) => {
         const titleElement = video.querySelector("#video-title") || video.querySelector("a[title]") || video.querySelector("a[href*='/watch?v=']");
         const thumbnailElement = video.querySelector("yt-image img") || video.querySelector("img[src*='ytimg.com']") || 
                                video.querySelector("ytd-thumbnail img");
         const channelElement = video.querySelector("ytd-channel-name a");
         const url = titleElement?.href || "";
-        const id = url.includes("v=") ? url.split("v=")[1]?.split("&")[0] || "" : "";
-        // Fallback to metadata thumbnail if available
+        const idMatch = url.match(/v=([^&]+)/);
+        const id = idMatch ? idMatch[1] : `fallback-${index}`;
         const thumbnailMeta = video.querySelector("ytd-thumbnail #img")?.getAttribute("src") || 
                              (id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "");
         if (!thumbnailElement?.src && !thumbnailMeta) {
@@ -103,16 +128,25 @@ app.post("/search", async (req, res) => {
         if (!isValidUrl && video.url) {
           console.log(`Invalid URL filtered: ${video.url || "undefined"}`);
         }
+        if (seenIds.has(video.id)) {
+          console.log(`Duplicate ID filtered: ${video.id}`);
+          return false;
+        }
+        seenIds.add(video.id);
         return video.id && video.title && video.url && isValidUrl && video.thumbnail;
       });
     });
 
     await browser.close();
-    console.log(`Search results for "${query}": ${results.length} valid videos`);
+    console.log(`Search results for "${query}" (page ${page}): ${results.length} valid videos`);
     if (results.length === 0) {
       console.warn("No valid search results found for query:", query);
     }
-    res.status(200).json({ results });
+
+    // Cache results
+    searchCache.set(cacheKey, { results, timestamp: Date.now() });
+    
+    res.status(200).json({ results, page });
   } catch (err) {
     console.error(`❌ Search error: ${err.message}`);
     res.status(500).json({ error: "Search failed", details: err.message });
@@ -144,9 +178,8 @@ app.post("/convert", (req, res) => {
   --no-playlist \
   --no-mtime \
   --extract-audio \
-  --audio-format mp3 \
-  --audio-quality 0 \
-  --embed-thumbnail \
+  --audio-format wav \
+  --postprocessor-args "-c:a pcm_s24le -ar 384000" \
   --add-metadata \
   --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
   --restrict-filenames \
@@ -174,13 +207,17 @@ app.post("/convert", (req, res) => {
       });
     }
 
-    console.log(`✅ MP3 saved to Downloads folder`);
+    const outputFile = stdout.trim();
+    console.log(`✅ WAV saved to: ${outputFile}`);
+    if (!outputFile.endsWith('.wav')) {
+      console.error(`Unexpected file extension: ${outputFile}`);
+    }
     res.setHeader("Access-Control-Allow-Origin", "http://localhost:3000");
     res.setHeader("Referrer-Policy", "no-referrer");
 
     res.status(200).json({
       filePath: stdout.trim(),
-      message: `MP3 saved using video title`,
+      message: `WAV saved using video title`,
     });
   });
 });

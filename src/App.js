@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import './App.css';
 
@@ -8,10 +8,13 @@ function App() {
   const [filePath, setFilePath] = useState("");
   const [loading, setLoading] = useState(false);
   const [isUrl, setIsUrl] = useState(false);
-  const [loadingSearch, setLoadingSearch] = useState(false);
   const [closing, setClosing] = useState(false);
   const [convertingVideos, setConvertingVideos] = useState(new Set());
   const [notifications, setNotifications] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const loaderRef = useRef(null);
+  const fetchTimeoutRef = useRef(null);
 
 
   // Check if input is a URL
@@ -32,6 +35,8 @@ function App() {
     setIsUrl(checkIsUrl(value));
     if (!value.trim()) {
       setSearchResults([]);
+      setPage(1);
+      setHasMore(true);
     }
   };
 
@@ -45,28 +50,59 @@ function App() {
   // Search YouTube videos
   const handleSearch = async () => {
     if (!url.trim()) return;
-    setLoadingSearch(true);
-    setFilePath("");
+    setLoading(true);
     setSearchResults([]);
+    setPage(1);
+    setHasMore(true);
     setClosing(false);
 
-    if (isUrl) {
-      await handleConvert(url);
-    } else {
-      try {
-        const response = await axios.post("http://localhost:5050/search", { query: url });
-        if (response.data.results.length === 0) {
-          alert("No valid search results found. Try a different query.");
-        }
-        console.log("Search results:", response.data.results); // Debug log
-        setSearchResults(response.data.results.filter(video => video.url && video.thumbnail && checkIsUrl(video.url) &&
-          !video.thumbnail.includes("placehold.co")));
-      } catch (err) {
-        console.error("Search error:", err);
-        alert(`Error searching videos: ${err.response?.data?.details || err.message}`);
-      } finally {
-        setLoadingSearch(false);
+    try {
+      if (isUrl) {
+        await handleConvert(url);
+      } else {
+        await fetchSearchResults(1);
       }
+    } catch (err) {
+      console.error("Submit error:", err);
+      alert(`Error: ${err.response?.data?.details || err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch search results for a given page
+  const fetchSearchResults = async (pageNum, retryCount = 0) => {
+    console.log(`Fetching page ${pageNum}, hasMore: ${hasMore}, loading: ${loading}`);
+    try {
+      const response = await axios.post("http://localhost:5050/search", { query: url, page: pageNum });
+      const seenIds = new Set(searchResults.map(video => video.id));
+      const newResults = response.data.results.filter(video => 
+        video.url && 
+        video.thumbnail && 
+        checkIsUrl(video.url) && 
+        !video.thumbnail.includes("placehold.co") && 
+        !seenIds.has(video.id)
+      );
+      console.log(`Search results for page ${pageNum}: ${newResults.length} new videos`);
+      setSearchResults(prev => pageNum === 1 ? newResults : [...prev, ...newResults]);
+      setHasMore(newResults.length > 0);
+      if (newResults.length === 0 && retryCount < 2) {
+        console.log(`No new results for page ${pageNum}, retrying (${retryCount + 1}/2)...`);
+        setTimeout(() => fetchSearchResults(pageNum, retryCount + 1), 1000);
+      } else if (newResults.length === 0) {
+        alert("No more search results found.");
+      }
+    } catch (err) {
+      console.error("Search error:", err);
+      if (retryCount < 2) {
+        console.log(`Retrying page ${pageNum} (${retryCount + 1}/2)...`);
+        setTimeout(() => fetchSearchResults(pageNum, retryCount + 1), 1000);
+      } else {
+        alert(`Error fetching search results: ${err.response?.data?.details || err.message}`);
+        setHasMore(false);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -104,28 +140,68 @@ function App() {
       setNotifications(prev => prev.map(n =>
         n.id === notificationId ? { ...n, isLoading: false, filePath: res.data.filePath } : n
       ));
-      setLoading(false);
-      setConvertingVideos(prev => {
-        const newSet = new Set(prev);
-        if (videoId) newSet.delete(videoId);
-        return newSet;
-      });
     } catch (err) {
-      console.error(err);
+      console.error("Convert error:", err);
       alert(`Error converting video: ${err.response?.data?.details || err.message}${err.response?.data?.receivedUrl ? ` (URL: ${err.response?.data?.receivedUrl})` : ''}`);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    } finally {
       setLoading(false);
       setConvertingVideos(prev => {
         const newSet = new Set(prev);
         if (videoId) newSet.delete(videoId);
         return newSet;
-      });
-      setClosing(true);
-      setTimeout(() => {
-        setClosing(false);
-      }, 300);
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    }
+      })};
   };
+
+  // Infinite scroll effect with debounce
+  useEffect(() => {
+    if (!hasMore || isUrl || !url.trim()) {
+      console.log("Infinite scroll disabled:", { hasMore, isUrl, url: url.trim() });
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && !loading) {
+          console.log("Loader intersected, triggering page increment");
+          if (fetchTimeoutRef.current) {
+            clearTimeout(fetchTimeoutRef.current);
+          }
+          fetchTimeoutRef.current = setTimeout(() => {
+            setPage(prev => {
+              console.log(`Incrementing page to ${prev + 1}`);
+              return prev + 1;
+            });
+          }, 200); // Reduced debounce to 200ms
+        }
+      },
+      { threshold: 1.0, rootMargin: '200px' } // Ensure loader is fully visible
+    );
+
+    if (loaderRef.current) {
+      console.log("Observing loader element");
+      observer.observe(loaderRef.current);
+    }
+
+    return () => {
+      if (loaderRef.current) {
+        console.log("Unobserving loader element");
+        observer.unobserve(loaderRef.current);
+      }
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
+  }, [hasMore, loading, isUrl, url]);
+
+  // Fetch more results when page changes
+  useEffect(() => {
+    if (page > 1 && !isUrl && url.trim() && hasMore) {
+      console.log(`Page changed to ${page}, fetching results`);
+      setLoading(true);
+      fetchSearchResults(page);
+    }
+  }, [page]);
 
   // Auto-dismiss pop-up after 5 seconds for success message
   useEffect(() => {
@@ -150,7 +226,7 @@ function App() {
     <div className="body">
       <div className="header">
         <div className="bx-1">
-          <h1 className="title">🎧 YouTube to MP3 Converter</h1>
+          <h1 className="title">🎧 Hi-Res audio converter</h1>
           <div className="download">
             <input
               type="text"
@@ -164,10 +240,10 @@ function App() {
               {url.trim() && (
                 <button
                   onClick={handleSearch}
-                  disabled={loadingSearch}
+                  disabled={loading}
                   className="submit-btn"
                 >
-                  {loadingSearch ? (isUrl ? "Converting..." : "Searching...") : (isUrl ? "Convert" : "Search")}
+                  {loading ? (isUrl ? "Converting..." : "Searching...") : (isUrl ? "Convert" : "Search")}
                 </button>
               )}
             </div>
@@ -204,9 +280,9 @@ function App() {
         <div className="search-body">
           <h2 className="search-body-title">Search Results</h2>
           <ul className="result-list">
-            {searchResults.map((video) => (
+            {searchResults.map((video, index) => (
               <li
-                key={video.id}
+                key={`${video.id}-${index}`}
                 className="flex items-center space-x-4 p-2 border rounded"
               >
                 <div className="section">
@@ -236,6 +312,11 @@ function App() {
               </li>
             ))}
           </ul>
+          {hasMore && (
+            <div ref={loaderRef} className="loading-more">
+              Loading more...
+            </div>
+          )}
         </div>
       )}
     </div>
