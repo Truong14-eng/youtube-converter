@@ -330,18 +330,34 @@ iframe {
   color: #28a745;
 }
 
+.popup.error {
+  background-color: #ffcccc;
+  color: #cc0000;
+  border: 1px solid #cc0000;
+}
+
+.popup.error .error-mark {
+  color: #cc0000;
+}
+
 .popup p {
   margin: 0;
   font-size: 1rem;
   color: #333;
 }
+
 .popup code {
-  font-size: 0.875rem;
+  font-size: 15px;
   word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: #f8f9fa;
   padding: 5px;
   border-radius: 5px;
   width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  -webkit-box-orient: vertical;
 }
 
 .loading-bar {
@@ -362,10 +378,6 @@ iframe {
 .converting{
   width:100%;
   text-align: center;
-}
-
-.break-all {
-  word-break: break-all;
 }
 
 .loading-more {

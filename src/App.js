@@ -307,9 +307,9 @@ function App() {
 
   // Auto-dismiss pop-up after 5 seconds for success message
   useEffect(() => {
-    const successNotifications = notifications.filter(n => !n.isLoading && n.filePath);
-    if (successNotifications.length > 0) {
-      const timers = successNotifications.map(n => {
+    const activeNotifications = notifications.filter(n => !n.isLoading && (n.status === "completed" || n.status === "failed"));
+    if (activeNotifications.length > 0) {
+      const timers = activeNotifications.map(n => {
         const timer = setTimeout(() => {
           setNotifications(prev => prev.map(notification =>
             notification.id === n.id ? { ...notification, closing: true } : notification
@@ -340,7 +340,14 @@ function App() {
             <div className="btn">
               {url.trim() && (
                 <button
-                  onClick={handleSearch}
+                  onClick={() => {
+                    if (isUrl) {
+                      setSelectedVideo({ url, id: null, title: "Direct URL" });
+                      setShowFormatModal(true);
+                    } else {
+                      handleSearch();
+                    }
+                  }}
                   disabled={loading}
                   className="submit-btn"
                 >
@@ -355,7 +362,7 @@ function App() {
           {notifications.map((notification, index) => (
             <div
               key={notification.id}
-              className={`popup ${notification.filePath ? 'success' : ''} ${notification.closing ? 'closing' : ''}`}
+              className={`popup ${notification.status === "completed" ? 'success' : notification.status === "failed" ? 'error' : ''} ${notification.closing ? 'closing' : ''}`}
               style={{ top: `${20 + index * 90}px` }}
             >
               {notification.isLoading ? (
@@ -365,11 +372,18 @@ function App() {
                   </div>
                   <p className='converting'>Converting...</p>
                 </>
-              ) : (
+              ) : notification.status === "completed" ? (
                 <>
                   <span className="checkmark">✅</span>
                   <p>MP3 saved to:</p>
-                  <code className="text-sm break-all">{notification.filePath}</code>
+                  <code className="popup-info">{notification.filePath}</code>
+                </>
+              )
+              : (
+                <>
+                  <span className="error-mark">❌</span>
+                  <p>Error:</p>
+                  <code className="popup-info"> {notification.error}</code>
                 </>
               )}
             </div>
@@ -402,7 +416,8 @@ function App() {
         <div className="format-overlay" onClick={() => setShowFormatModal(false)}>
           <div className="format-content" onClick={e => e.stopPropagation()}>
             <h2>Choose Format</h2>
-            <button className="format-btn" id="format-mp4a" onClick={() => handleFormatSelect("m4a")}>M4A</button>
+            <button className="format-btn" id="format-mp4a" onClick={() => handleFormatSelect("mp4")}>MP4A</button>
+            <button className="format-btn" id="format-m4a" onClick={() => handleFormatSelect("m4a")}>M4A</button>
             <button className="format-btn" id="format-wav" onClick={() => handleFormatSelect("wav")}>WAV (196kHz, 32-bit PCM)</button>
             <button className="format-btn" id="format-flac" onClick={() => handleFormatSelect("flac")}>FLAC (196kHz, 32-bit PCM)</button>
             <button className="format-cancelbtn" id="format-cancel" onClick={() => setShowFormatModal(false)}>Cancel</button>

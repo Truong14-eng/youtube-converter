@@ -414,7 +414,7 @@ app.post("/convert", async (req, res) => {
 
   try {
     // Step 1: Extract audio using yt-dlp with video ID
-    let ytDlpCmd = `/opt/homebrew/bin/yt-dlp --no-playlist --no-mtime --extract-audio --add-metadata --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" --restrict-filenames --audio-format wav -o "${tempOutput}" "https://www.youtube.com/watch?v=${videoId}"`;
+    let ytDlpCmd = `/opt/homebrew/bin/yt-dlp --no-playlist --no-mtime --extract-audio --add-metadata --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" --restrict-filenames --postprocessor-args "FFmpegExtractAudio:-c:a pcm_f32le -ar 96000 -ac 2" --audio-format wav -o "${tempOutput}" "https://www.youtube.com/watch?v=${videoId}"`;
 
     console.time("yt-dlp Duration");
     console.log(`▶️ Starting yt-dlp: ${ytDlpCmd}`);
@@ -439,10 +439,13 @@ app.post("/convert", async (req, res) => {
 
     // Step 3: Convert using ffmpeg
     let ffmpegCmd;
-    const bitrate = "500k";
-    if (format === "m4a") {
-      console.log("Processing M4A conversion");
+    const bitrate = "1000k";
+    if (format === "mp4"){
+      console.log("Processing MP4A conversion")
       ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
+    } else if (format === "m4a") {
+      console.log("Processing M4A conversion");
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -c:a alac -ar 192000 -ac 2 -sample_fmt s32p -vn "${finalOutput}"`;
     } else if (format === "wav") {
       console.log("Processing WAV conversion");
       ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -ar 196000 -ac 2 -sample_fmt s32 -c:a pcm_s32le -vn "${finalOutput}"`;
@@ -496,7 +499,7 @@ app.post("/convert", async (req, res) => {
       fs.unlinkSync(finalOutput);
     }
 
-    res.status(200).json({
+    res.status(400).json({
       error: "Conversion failed",
       details: err.stderr || err.message,
     });
