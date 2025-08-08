@@ -231,7 +231,7 @@ app.post("/preview", async (req, res) => {
 //   --restrict-filenames \
 //   -o "${tempOutput}" \
 //   "${videoUrl.replace(/"/g, '\\"').replace(/\$/g, '\\$')}"`;
-  
+
 
 //   // console.log(`▶️ Running command: ${cmd}`);
 
@@ -273,7 +273,7 @@ app.post("/preview", async (req, res) => {
 //   //   //   console.error(`Unexpected file extension: ${outputFile}`);
 //   //   // }
 //   //   console.log(`✅ WAV saved to: ${outputFile}`);
-  
+
 //   try {
 //     // Run yt-dlp
 //     console.log(`▶️ Running yt-dlp: ${ytDlpCmd}`);
@@ -337,7 +337,7 @@ app.post("/preview", async (req, res) => {
 //   } catch (err) {
 //     console.error(`❌ Conversion error: ${err.message}`);
 //     console.error(`❌ stderr: ${err.stderr || "No stderr"}`);
-    
+
 //     // Clean up temporary file if it exists
 //     if (fs.existsSync(tempOutput)) {
 //       console.log(`🗑️ Cleaning up failed conversion: ${tempOutput}`);
@@ -365,8 +365,9 @@ app.post("/preview", async (req, res) => {
 app.post("/convert", async (req, res) => {
   const videoUrl = req.body.url;
   const format = req.body.format;
+  const enhanceOptions = req.body.enhanceOptions || {}; // Optional object for reverb/widening
 
-  console.log(`Convert request - URL: ${videoUrl}, Format: ${format}`);
+  console.log(`Convert request - URL: ${videoUrl}, Format: ${format}, Enhance Options: ${JSON.stringify(enhanceOptions)}`);
 
   if (!videoUrl || typeof videoUrl !== "string") {
     console.error("Invalid URL received:", videoUrl);
@@ -410,12 +411,58 @@ app.post("/convert", async (req, res) => {
   }
 
   const tempOutput = path.join(downloadsDir, `${title}_temp.wav`);
-  const finalOutput = path.join(downloadsDir, `${title}.${format}`);
+  const tempVideoOutput = path.join(downloadsDir, `${title}_temp_video.mp4`);
+  let finalOutput = path.join(downloadsDir, `${title}.${format}`);
+  let counter = 1;
+  let enhancedAudioOutput;
+
+  // Handle duplicate filenames
+  while (fs.existsSync(finalOutput)) {
+    finalOutput = path.join(downloadsDir, `${title}_${counter}.${format}`);
+    counter++;
+    console.log(`Duplicate found, trying: ${finalOutput}`);
+  }
 
   try {
     // Step 1: Extract audio using yt-dlp with video ID
-    let ytDlpCmd = `/opt/homebrew/bin/yt-dlp --no-playlist --no-mtime --extract-audio --add-metadata --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" --restrict-filenames --postprocessor-args "FFmpegExtractAudio:-c:a pcm_f32le -ar 96000 -ac 2" --audio-format wav -o "${tempOutput}" "https://www.youtube.com/watch?v=${videoId}"`;
+    if (req.body.includeVideo === true) {
+      ytDlpCmd = `/opt/homebrew/bin/yt-dlp \
+        --no-playlist \
+        --no-mtime \
+        --add-metadata \
+        --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
+        --restrict-filenames \
+        --merge-output-format mp4 \
+        -o "${tempVideoOutput}" \
+        "https://www.youtube.com/watch?v=${videoId}"`;
+      console.time("yt-dlp Duration");
+      console.log(`▶️ Starting yt-dlp for video: ${ytDlpCmd}`);
+      const { stdout: ytDlpOutput, stderr: ytDlpError } = await execPromise(ytDlpCmd, { timeout: 300000 });
+      console.timeEnd("yt-dlp Duration");
+      console.log(`✅ yt-dlp stdout: ${ytDlpOutput}`);
+      if (ytDlpError) {
+        console.error(`⚠️ yt-dlp stderr: ${ytDlpError}`);
+      }
+      if (!fs.existsSync(tempVideoOutput)) {
+        throw new Error(`Temporary video file not found: ${tempVideoOutput}`);
+      }
 
+      // Extract audio from video for processing
+      const audioExtractCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempVideoOutput}" -vn -acodec pcm_f32le -ar 96000 -ac 2 "${tempOutput}"`;
+      console.log(`▶️ Extracting audio: ${audioExtractCmd}`);
+      await execPromise(audioExtractCmd);
+    } else {
+      ytDlpCmd = `/opt/homebrew/bin/yt-dlp \
+        --no-playlist \
+        --no-mtime \
+        --extract-audio \
+        --add-metadata \
+        --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
+        --restrict-filenames \
+        --postprocessor-args "FFmpegExtractAudio:-c:a pcm_f32le -ar 96000 -ac 2" \
+        --audio-format wav \
+        -o "${tempOutput}" \
+        "https://www.youtube.com/watch?v=${videoId}"`;
     console.time("yt-dlp Duration");
     console.log(`▶️ Starting yt-dlp: ${ytDlpCmd}`);
     const { stdout: ytDlpOutput, stderr: ytDlpError } = await execPromise(ytDlpCmd, { timeout: 300000 });
@@ -424,6 +471,7 @@ app.post("/convert", async (req, res) => {
     if (ytDlpError) {
       console.error(`⚠️ yt-dlp stderr: ${ytDlpError}`);
     }
+  }
 
     if (!fs.existsSync(tempOutput)) {
       throw new Error(`Temporary WAV file not found: ${tempOutput}`);
@@ -437,21 +485,65 @@ app.post("/convert", async (req, res) => {
     const beforeBitDepth = beforeProbeData.bits_per_sample || "N/A";
     // console.log(`Before Conversion - Sample Rate: ${beforeSampleRate} kHz, Bitrate: ${beforeBitRateKbps} kbps, Bit Depth: ${beforeBitDepth}`);
 
+    // Simple noise detection: Check for significant low-frequency (hum) or high-frequency (hiss) energy
+    let noiseFilter = "";
+    if (beforeProbeData.spectrum) {
+      const spectrum = JSON.parse(beforeProbeData.spectrum);
+      const lowFreqEnergy = spectrum.some(entry => entry.frequency < 100 && entry.amplitude > -40);
+      const highFreqEnergy = spectrum.some(entry => entry.frequency > 8000 && entry.amplitude > -50);
+      if (lowFreqEnergy || highFreqEnergy) {
+        noiseFilter = ",afftdn=nr=1.0:nf=-20";
+        console.log("Noise detected (hum or hiss), applying enhanced noise reduction");
+      }
+    }
+
     // Step 3: Convert using ffmpeg
+    const eqFilter = "equalizer=f=250:t=q:w=1:g=2,equalizer=f=1000:t=q:w=0.5:g=2,equalizer=f=2000:t=q:w=1:g=2,equalizer=f=1200:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=2,equalizer=f=8000:t=q:w=1:g=-2"; // +2 dB for all, +2 dB for vocals (1200 Hz)
+    const compLimitFilter = "dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14"; // Master clipper and limiter
+    const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
+    const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
+
+    // const eqFilter = "volume=0dB,equalizer=f=250:t=q:w=1:g=2,equalizer=f=1000:t=q:w=1:g=2,equalizer=f=2000:t=q:w=1:g=2,equalizer=f=1500:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=2,equalizer=f=8000:t=q:w=1:g=-2"; // +2 dB for all, +2 dB for vocals at 1500 Hz
+    // const compLimitFilter = "dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14"; // Master clipper and limiter
+    // const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
+    // const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
+
+    // const eqFilter = "equalizer=f=250:t=q:w=0.5:g=1,equalizer=f=500:t=q:w=0.7:g=1,equalizer=f=2000:t=q:w=0.5:g=2,equalizer=f=4000:t=q:w=0.7:g=2,equalizer=f=8000:t=q:w=0.5:g=1"; // +1dB for all, +2dB for vocals
+    // const compLimitFilter = "volume=1.122,acompressor=ratio=8:threshold=-10dB:attack=10:release=100,dynaudnorm=p=0.95:m=10,alimiter=limit=0.5,loudnorm=I=-16:TP=-1:LRA=15"; // +1dB volume, master clipper, limiter
+    // const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-20dB:roomsize=0.8,extrastereo=m=0.8" : "";
+    // const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
+
     let ffmpegCmd;
-    const bitrate = "1000k";
-    if (format === "mp4"){
-      console.log("Processing MP4A conversion")
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
+    const bitrate = "4000k";
+    if (format === "mp3") {
+      console.log("Processing MP3 conversion")
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a mp3 -b:a ${bitrate} -ar 48000 -ac 2 -sample_fmt s32p -f mp3 "${finalOutput}"`;
+    }else if (format === "mp4") {
+      // console.log("Processing MP4A conversion")
+      // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
+      if (req.body.includeVideo === true) {
+        console.log("Processing MP4 conversion with video and enhanced audio");
+        enhancedAudioOutput = path.join(downloadsDir, `${title}_enhanced_audio.wav`);
+        const enhanceAudioCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -ac 2 "${enhancedAudioOutput}"`;
+        console.log(`▶️ Enhancing audio: ${enhanceAudioCmd}`);
+        await execPromise(enhanceAudioCmd);
+
+        // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempVideoOutput}" -i "${enhancedAudioOutput}" -c:v copy -c:a aac -b:a ${bitrate} -ar 96000 -shortest "${finalOutput}"`;
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempVideoOutput}" -i "${enhancedAudioOutput}" -c:v libx264 -preset medium -c:a aac -b:a ${bitrate} -ar 96000 -pix_fmt yuv420p -shortest "${finalOutput}"`;
+      } else {
+        console.log("Processing MP4 conversion with audio only");
+        ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
+      }
     } else if (format === "m4a") {
       console.log("Processing M4A conversion");
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -c:a alac -ar 192000 -ac 2 -sample_fmt s32p -vn "${finalOutput}"`;
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a alac -ar 384000 -ac 2 -sample_fmt s32p -vn "${finalOutput}"`;
+    // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
     } else if (format === "wav") {
       console.log("Processing WAV conversion");
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -ar 196000 -ac 2 -sample_fmt s32 -c:a pcm_s32le -vn "${finalOutput}"`;
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -ac 2 -sample_fmt s32 -c:a pcm_s32le -vn "${finalOutput}"`;
     } else if (format === "flac") {
       console.log("Processing FLAC conversion");
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -c:a flac -ar 196000 -ac 2 -sample_fmt s32 -vn "${finalOutput}"`;
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -ac 2 -sample_fmt s32 -c:a flac -vn "${finalOutput}"`;
     }
 
     console.time("ffmpeg Duration");
@@ -479,6 +571,14 @@ app.post("/convert", async (req, res) => {
     // Step 5: Clean up
     console.log(`🗑️ Removing temporary file: ${tempOutput}`);
     fs.unlinkSync(tempOutput);
+    if (fs.existsSync(tempVideoOutput)) {
+      console.log(`🗑️ Removing temporary video file: ${tempVideoOutput}`);
+      fs.unlinkSync(tempVideoOutput);
+    }
+   if (enhancedAudioOutput && fs.existsSync(enhancedAudioOutput)) {
+      console.log(`🗑️ Removing enhanced audio file: ${enhancedAudioOutput}`);
+      fs.unlinkSync(enhancedAudioOutput);
+    }
 
     console.log(`✅ ${format.toUpperCase()} saved to: ${finalOutput}`);
 
@@ -489,14 +589,23 @@ app.post("/convert", async (req, res) => {
   } catch (err) {
     console.error(`❌ Conversion error: ${err.message}`);
     console.error(`❌ Full error details: ${err.stderr || err.message}`);
-    
+
     if (fs.existsSync(tempOutput)) {
       console.log(`🗑️ Cleaning up failed conversion: ${tempOutput}`);
       fs.unlinkSync(tempOutput);
     }
+    if (fs.existsSync(tempVideoOutput)) {
+      console.log(`🗑️ Cleaning up failed conversion: ${tempVideoOutput}`);
+      fs.unlinkSync(tempVideoOutput);
+    }
     if (fs.existsSync(finalOutput)) {
       console.log(`🗑️ Removing invalid file: ${finalOutput}`);
       fs.unlinkSync(finalOutput);
+    }
+
+    if (enhancedAudioOutput && fs.existsSync(enhancedAudioOutput)) {
+      console.log(`🗑️ Cleaning up failed enhanced audio: ${enhancedAudioOutput}`);
+      fs.unlinkSync(enhancedAudioOutput);
     }
 
     res.status(400).json({

@@ -47,7 +47,7 @@ function App() {
   // Handle Enter key press
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && url.trim()) {
-      handleSearch();
+      setShowFormatModal(true);
     }
   };
 
@@ -150,7 +150,11 @@ function App() {
     setClosing(false);
 
     try {
-      const res = await axios.post("http://localhost:5050/convert", { url: videoUrl, format }, { timeout: 360000 }); // 6 minutes
+      const res = await axios.post("http://localhost:5050/convert", { 
+        url: videoUrl, 
+        format: format === "mp4v" ? "mp4" : format, 
+        includeVideo: format === "mp4v" 
+      }, { timeout: 360000 }); // 6 minutes
       console.log("Convert response:", res.status, res.data);
       if (res.status === 204) {
         throw new Error("Server returned no content");
@@ -416,7 +420,9 @@ function App() {
         <div className="format-overlay" onClick={() => setShowFormatModal(false)}>
           <div className="format-content" onClick={e => e.stopPropagation()}>
             <h2>Choose Format</h2>
+            <button className="format-btn" id="format-mp3" onClick={() => handleFormatSelect("mp3")}>MP3</button>
             <button className="format-btn" id="format-mp4a" onClick={() => handleFormatSelect("mp4")}>MP4A</button>
+            <button className="format-btn" id="format-mp4v" onClick={() => handleFormatSelect("mp4v")}>MP4 Video</button>
             <button className="format-btn" id="format-m4a" onClick={() => handleFormatSelect("m4a")}>M4A</button>
             <button className="format-btn" id="format-wav" onClick={() => handleFormatSelect("wav")}>WAV (196kHz, 32-bit PCM)</button>
             <button className="format-btn" id="format-flac" onClick={() => handleFormatSelect("flac")}>FLAC (196kHz, 32-bit PCM)</button>
