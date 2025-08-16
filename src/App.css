@@ -25,7 +25,7 @@
   height: 380px;
   background: linear-gradient(120deg,red,blue);
   padding-top: 80px;
-  padding-bottom: 40px;
+  padding-bottom: 120px;
 }
 
 .bx-1{
@@ -34,12 +34,79 @@
 }
 
 .title{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.title1{
   text-align: center;
   padding-top: 10px;
   background-image: linear-gradient(180deg,lime, orange);
   background-clip: text;
   color: transparent;
   font-size: 50px;
+}
+
+.gif{
+  width: 100px;
+  height: 179px;
+  margin-left: 40px;
+  border-radius: 10px;
+}
+
+.gif2{
+  width: 100px;
+  height: 179px;
+  margin-right: 40px;
+  border-radius: 10px;
+}
+
+.gif3{
+  width: 320px;
+  height: 180px;
+  margin-top: 10px;
+  border-radius: 10px;
+}
+
+.play-btn {
+  padding: 10px 20px;
+  height: 50px;
+  width: 100px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+.play-btn:hover {
+  background-color: #45a049;
+}
+
+.stop-btn {
+  padding: 10px 20px;
+  height: 50px;
+  width: 100px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+.stop-btn:hover {
+  background-color: #da190b;
+}
+
+.up-body{
+  display: flex;
+  justify-content: center;
 }
 
 .download{
@@ -52,6 +119,8 @@
 }
 
 .textbox{
+  align-items: center;
+  justify-content: center;
   width: 500px;
   height: 40px;
   border-radius: 5px;
@@ -93,6 +162,12 @@
   align-items: center;
   padding-top: 10px;
   width: 100%;
+}
+
+.search-body-title-section{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .search-body-title {

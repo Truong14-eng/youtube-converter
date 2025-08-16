@@ -459,7 +459,7 @@ app.post("/convert", async (req, res) => {
         --add-metadata \
         --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
         --restrict-filenames \
-        --postprocessor-args "FFmpegExtractAudio:-c:a pcm_f32le -ar 96000 -ac 2" \
+        --postprocessor-args "FFmpegExtractAudio:-c:a pcm_f32le -ar 384000 -sample_fmt s32 -ac 2" \
         --audio-format wav \
         -o "${tempOutput}" \
         "https://www.youtube.com/watch?v=${videoId}"`;
@@ -499,19 +499,24 @@ app.post("/convert", async (req, res) => {
 
     // Step 3: Convert using ffmpeg
     const eqFilter = "equalizer=f=250:t=q:w=1:g=2,equalizer=f=1000:t=q:w=0.5:g=2,equalizer=f=2000:t=q:w=1:g=2,equalizer=f=1200:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=2,equalizer=f=8000:t=q:w=1:g=-2"; // +2 dB for all, +2 dB for vocals (1200 Hz)
-    const compLimitFilter = "dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14"; // Master clipper and limiter
+    const compLimitFilter = "volume=4,dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14"; // Master clipper and limiter
     const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
+
+    const eqFilter2 = "equalizer=f=60:t=q:w=0.7:g=6,equalizer=f=250:t=q:w=1:g=6,equalizer=f=1000:t=q:w=0.5:g=4,equalizer=f=2000:t=q:w=1:g=4,equalizer=f=4000:t=q:w=1:g=4,equalizer=f=8000:t=q:w=1:g=4";
+    const compLimitFilter2 = "volume=4,dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14";
+    const optionalEffects2 = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
+    const fullAudioFilter2 = `${eqFilter2},${compLimitFilter2}${noiseFilter}${optionalEffects2}`;
 
     // const eqFilter = "volume=0dB,equalizer=f=250:t=q:w=1:g=2,equalizer=f=1000:t=q:w=1:g=2,equalizer=f=2000:t=q:w=1:g=2,equalizer=f=1500:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=2,equalizer=f=8000:t=q:w=1:g=-2"; // +2 dB for all, +2 dB for vocals at 1500 Hz
     // const compLimitFilter = "dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14"; // Master clipper and limiter
     // const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     // const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
 
-    // const eqFilter = "equalizer=f=250:t=q:w=0.5:g=1,equalizer=f=500:t=q:w=0.7:g=1,equalizer=f=2000:t=q:w=0.5:g=2,equalizer=f=4000:t=q:w=0.7:g=2,equalizer=f=8000:t=q:w=0.5:g=1"; // +1dB for all, +2dB for vocals
-    // const compLimitFilter = "volume=1.122,acompressor=ratio=8:threshold=-10dB:attack=10:release=100,dynaudnorm=p=0.95:m=10,alimiter=limit=0.5,loudnorm=I=-16:TP=-1:LRA=15"; // +1dB volume, master clipper, limiter
-    // const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-20dB:roomsize=0.8,extrastereo=m=0.8" : "";
-    // const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
+    // const eqFilter2 = "equalizer=f=250:t=q:w=0.5:g=1,equalizer=f=500:t=q:w=0.7:g=1,equalizer=f=2000:t=q:w=0.5:g=2,equalizer=f=4000:t=q:w=0.7:g=2,equalizer=f=8000:t=q:w=0.5:g=1"; // +1dB for all, +2dB for vocals
+    // const compLimitFilter2 = "volume=1.122,acompressor=ratio=8:threshold=-10dB:attack=10:release=100,dynaudnorm=p=0.95:m=10,alimiter=limit=0.5,loudnorm=I=-16:TP=-1:LRA=15"; // +1dB volume, master clipper, limiter
+    // const optionalEffects2 = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-20dB:roomsize=0.8,extrastereo=m=0.8" : "";
+    // const fullAudioFilte2r = `${eqFilter2},${compLimitFilter2}${noiseFilter2}${optionalEffects2}`;
 
     let ffmpegCmd;
     const bitrate = "4000k";
@@ -524,15 +529,15 @@ app.post("/convert", async (req, res) => {
       if (req.body.includeVideo === true) {
         console.log("Processing MP4 conversion with video and enhanced audio");
         enhancedAudioOutput = path.join(downloadsDir, `${title}_enhanced_audio.wav`);
-        const enhanceAudioCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -ac 2 "${enhancedAudioOutput}"`;
+        const enhanceAudioCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -sample_fmt s32 -c:a pcm_s32le -ac 2 "${enhancedAudioOutput}"`;
         console.log(`▶️ Enhancing audio: ${enhanceAudioCmd}`);
         await execPromise(enhanceAudioCmd);
 
         // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempVideoOutput}" -i "${enhancedAudioOutput}" -c:v copy -c:a aac -b:a ${bitrate} -ar 96000 -shortest "${finalOutput}"`;
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempVideoOutput}" -i "${enhancedAudioOutput}" -c:v libx264 -preset medium -c:a aac -b:a ${bitrate} -ar 96000 -pix_fmt yuv420p -shortest "${finalOutput}"`;
+        ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempVideoOutput}" -i "${enhancedAudioOutput}" -c:v libx264 -preset medium -c:a aac -b:a ${bitrate} -ar 96000 -pix_fmt yuv420p -shortest "${finalOutput}"`;
       } else {
         console.log("Processing MP4 conversion with audio only");
-        ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
+        ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter2}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
       }
     } else if (format === "m4a") {
       console.log("Processing M4A conversion");
@@ -562,8 +567,8 @@ app.post("/convert", async (req, res) => {
     // Step 4: Get after conversion stats
     const { stdout: afterProbeOutput } = await execPromise(`/opt/homebrew/bin/ffprobe -i "${finalOutput}" -show_entries stream=sample_rate,bits_per_sample,bit_rate -v quiet -of json`);
     const afterProbeData = JSON.parse(afterProbeOutput).streams[0];
-    const afterSampleRate = afterProbeData.sample_rate / 1000; // Convert to kHz
-    const afterBitRateKbps = parseInt(afterProbeData.bit_rate) / 1000; // Convert to kbps
+    const afterSampleRate = afterProbeData.sample_rate / 1000;
+    const afterBitRateKbps = parseInt(afterProbeData.bit_rate) / 1000;
     const afterBitDepth = afterProbeData.bits_per_sample || "N/A";
     console.log(`Before Conversion - Sample Rate: ${beforeSampleRate} kHz, Bitrate: ${beforeBitRateKbps} kbps, Bit Depth: ${beforeBitDepth}`);
     console.log(`After Conversion - Sample Rate: ${afterSampleRate} kHz, Bitrate: ${afterBitRateKbps} kbps, Bit Depth: ${afterBitDepth}`);

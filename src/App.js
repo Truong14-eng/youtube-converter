@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import oiia from './asset/oiia.gif';
+import sirendog from './asset/sirendog.mp4';
+import ratdance from './asset/ratdance.mp4';
+import bgm from './asset/bgm.mp3';
+
 import './App.css';
 
 function App() {
@@ -20,6 +25,8 @@ function App() {
   const [showPreview, setShowPreview] = useState(false); // State for preview modal
   const [showFormatModal, setShowFormatModal] = useState(false); // State for format selection pop-up
   const [selectedVideo, setSelectedVideo] = useState(null); // Store the video being chosen
+  const audioRef = useRef(null); // Ref for the audio element
+  const [isPlaying, setIsPlaying] = useState(false); // State to track playback
 
   // Check if input is a URL
   const checkIsUrl = (value) => {
@@ -45,14 +52,33 @@ function App() {
   };
 
   // Handle Enter key press
-  const handleKeyDown = (e) => {
+  const handleKeyDown = async (e) => {
     if (e.key === 'Enter' && url.trim()) {
-      setShowFormatModal(true);
+      setLoading(true);
+      setClosing(false);
+      try {
+        if (isUrl) {
+          // For URLs, open the format modal
+          setSelectedVideo({ url, id: null, title: "Direct URL" });
+          setShowFormatModal(true);
+        } else {
+          // For non-URLs, trigger search
+          setSearchResults([]);
+          setPage(1);
+          setHasMore(true);
+          await handleSearch();
+        }
+      } catch (err) {
+        console.error("Key press error:", err);
+        alert(`Error: ${err.response?.data?.details || err.message}`);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   // Search YouTube videos
-   const handleSearch = async () => {
+  const handleSearch = async () => {
     if (!url.trim()) return;
     setLoading(true);
     setSearchResults([]);
@@ -80,11 +106,11 @@ function App() {
     try {
       const response = await axios.post("http://localhost:5050/search", { query: url, page: pageNum });
       const seenIds = new Set(searchResults.map(video => video.id));
-      const newResults = response.data.results.filter(video => 
-        video.url && 
-        video.thumbnail && 
-        checkIsUrl(video.url) && 
-        !video.thumbnail.includes("placehold.co") && 
+      const newResults = response.data.results.filter(video =>
+        video.url &&
+        video.thumbnail &&
+        checkIsUrl(video.url) &&
+        !video.thumbnail.includes("placehold.co") &&
         !seenIds.has(video.id)
       );
       console.log(`Search results for page ${pageNum}: ${newResults.length} new videos`);
@@ -150,10 +176,10 @@ function App() {
     setClosing(false);
 
     try {
-      const res = await axios.post("http://localhost:5050/convert", { 
-        url: videoUrl, 
-        format: format === "mp4v" ? "mp4" : format, 
-        includeVideo: format === "mp4v" 
+      const res = await axios.post("http://localhost:5050/convert", {
+        url: videoUrl,
+        format: format === "mp4v" ? "mp4" : format,
+        includeVideo: format === "mp4v"
       }, { timeout: 360000 }); // 6 minutes
       console.log("Convert response:", res.status, res.data);
       if (res.status === 204) {
@@ -181,51 +207,51 @@ function App() {
     }
   };
 
-//   // Handle convert for a specific video
-//   const handleConvert = async (videoUrl, videoId = null) => {
-//     if (!videoUrl || typeof videoUrl !== "string") {
-//       console.error("Invalid video URL:", videoUrl);
-//       alert(`Invalid video URL: ${videoUrl === undefined ? "URL is undefined" : "URL is invalid"}`);
-//       setLoading(false);
-//       setConvertingVideos(prev => {
-//         const newSet = new Set(prev);
-//         if (videoId) newSet.delete(videoId);
-//         return newSet;
-//       });
-//       setClosing(true);
-//       setTimeout(() => {
-//         setClosing(false);
-//       }, 300);
-//       setNotifications(prev => prev.filter(n => n.videoUrl !== videoUrl));
-//       return;
-//     }
-//     console.log("Converting URL:", videoUrl);
-//     const notificationId = generateNotificationId();
-//     setNotifications(prev => [...prev, { id: notificationId, videoUrl, isLoading: true }]);
-//     if (videoId) {
-//       setConvertingVideos(prev => new Set([...prev, videoId]));
-//     } else {
-//       setLoading(true);
-//     }
-//     setFilePath("");
-//     setClosing(false);
-//     try {
-//       const res = await axios.post("http://localhost:5050/convert", { url: videoUrl });
-//       setNotifications(prev => prev.map(n =>
-//         n.id === notificationId ? { ...n, isLoading: false, filePath: res.data.filePath } : n
-//       ));
-//     } catch (err) {
-//       console.error("Convert error:", err);
-//       alert(`Error converting video: ${err.response?.data?.details || err.message}${err.response?.data?.receivedUrl ? ` (URL: ${err.response?.data?.receivedUrl})` : ''}`);
-//       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-//     } finally {
-//       setLoading(false);
-//       setConvertingVideos(prev => {
-//         const newSet = new Set(prev);
-//         if (videoId) newSet.delete(videoId);
-//         return newSet;
-//       })};
-//   };
+  //   // Handle convert for a specific video
+  //   const handleConvert = async (videoUrl, videoId = null) => {
+  //     if (!videoUrl || typeof videoUrl !== "string") {
+  //       console.error("Invalid video URL:", videoUrl);
+  //       alert(`Invalid video URL: ${videoUrl === undefined ? "URL is undefined" : "URL is invalid"}`);
+  //       setLoading(false);
+  //       setConvertingVideos(prev => {
+  //         const newSet = new Set(prev);
+  //         if (videoId) newSet.delete(videoId);
+  //         return newSet;
+  //       });
+  //       setClosing(true);
+  //       setTimeout(() => {
+  //         setClosing(false);
+  //       }, 300);
+  //       setNotifications(prev => prev.filter(n => n.videoUrl !== videoUrl));
+  //       return;
+  //     }
+  //     console.log("Converting URL:", videoUrl);
+  //     const notificationId = generateNotificationId();
+  //     setNotifications(prev => [...prev, { id: notificationId, videoUrl, isLoading: true }]);
+  //     if (videoId) {
+  //       setConvertingVideos(prev => new Set([...prev, videoId]));
+  //     } else {
+  //       setLoading(true);
+  //     }
+  //     setFilePath("");
+  //     setClosing(false);
+  //     try {
+  //       const res = await axios.post("http://localhost:5050/convert", { url: videoUrl });
+  //       setNotifications(prev => prev.map(n =>
+  //         n.id === notificationId ? { ...n, isLoading: false, filePath: res.data.filePath } : n
+  //       ));
+  //     } catch (err) {
+  //       console.error("Convert error:", err);
+  //       alert(`Error converting video: ${err.response?.data?.details || err.message}${err.response?.data?.receivedUrl ? ` (URL: ${err.response?.data?.receivedUrl})` : ''}`);
+  //       setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  //     } finally {
+  //       setLoading(false);
+  //       setConvertingVideos(prev => {
+  //         const newSet = new Set(prev);
+  //         if (videoId) newSet.delete(videoId);
+  //         return newSet;
+  //       })};
+  //   };
 
   // Handle preview when clicking thumbnail
   const handlePreview = async (videoUrl, videoId, title) => {
@@ -258,7 +284,7 @@ function App() {
     }
     setShowFormatModal(false);
   };
-  
+
   // Infinite scroll effect with debounce
   useEffect(() => {
     if (!hasMore || isUrl || !url.trim()) {
@@ -328,10 +354,51 @@ function App() {
     }
   }, [notifications]);
 
+  // Handle playing background music
+  const handlePlayMusic = () => {
+    if (audioRef.current) {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(err => {
+        console.error("Play error:", err);
+        alert("Failed to play music. Please ensure the audio file is accessible or try again.");
+      });
+    }
+  };
+
+  // Handle stopping background music
+  const handleStopMusic = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0; // Reset to start
+      setIsPlaying(false);
+    }
+  };
+
+  // // Auto-play after 1 second
+  // useEffect(() => {
+  //   const timer = setTimeout(() => {
+  //     handlePlayMusic();
+  //   }, 1000); // 1 second delay
+  //   return () => clearTimeout(timer); // Cleanup timer on unmount
+  // }, []);
+
   return (
     <div className="body">
       <div className="header">
-          <h1 className="title">🎧 Hi-Res audio converter</h1>
+        <div className='title'>
+          <h1 className="title1">🎧 Hi-Res audio converter</h1>
+          <audio ref={audioRef} src={bgm} loop controls={false} />
+          {!isPlaying ? (
+            <button onClick={handlePlayMusic} className="play-btn">
+              Play
+            </button>
+          ) : (
+            <button onClick={handleStopMusic} className="stop-btn">
+              Stop
+            </button>
+          )}
+        </div>
+        <div className='up-body'>
+          <img className='gif' src={oiia} alt="loading..." />
           <div className="download">
             <input
               type="text"
@@ -359,6 +426,10 @@ function App() {
                 </button>
               )}
             </div>
+          </div>
+          <video className='gif2' controls='' autoPlay={true} loop muted >
+            <source src={sirendog} type="video/mp4" />
+          </video>
         </div>
       </div>
       {notifications.length > 0 && (
@@ -383,13 +454,13 @@ function App() {
                   <code className="popup-info">{notification.filePath}</code>
                 </>
               )
-              : (
-                <>
-                  <span className="error-mark">❌</span>
-                  <p>Error:</p>
-                  <code className="popup-info"> {notification.error}</code>
-                </>
-              )}
+                : (
+                  <>
+                    <span className="error-mark">❌</span>
+                    <p>Error:</p>
+                    <code className="popup-info"> {notification.error}</code>
+                  </>
+                )}
             </div>
           ))}
         </div>
@@ -420,19 +491,24 @@ function App() {
         <div className="format-overlay" onClick={() => setShowFormatModal(false)}>
           <div className="format-content" onClick={e => e.stopPropagation()}>
             <h2>Choose Format</h2>
-            <button className="format-btn" id="format-mp3" onClick={() => handleFormatSelect("mp3")}>MP3</button>
+            <button className="format-btn" id="format-mp3" onClick={() => handleFormatSelect("mp3")}>MP3 (320 kbps)</button>
             <button className="format-btn" id="format-mp4a" onClick={() => handleFormatSelect("mp4")}>MP4A</button>
             <button className="format-btn" id="format-mp4v" onClick={() => handleFormatSelect("mp4v")}>MP4 Video</button>
-            <button className="format-btn" id="format-m4a" onClick={() => handleFormatSelect("m4a")}>M4A</button>
-            <button className="format-btn" id="format-wav" onClick={() => handleFormatSelect("wav")}>WAV (196kHz, 32-bit PCM)</button>
-            <button className="format-btn" id="format-flac" onClick={() => handleFormatSelect("flac")}>FLAC (196kHz, 32-bit PCM)</button>
+            <button className="format-btn" id="format-m4a" onClick={() => handleFormatSelect("m4a")}>M4A (AlAC 96kHz, 32-bit PCM)</button>
+            <button className="format-btn" id="format-wav" onClick={() => handleFormatSelect("wav")}>WAV (384kHz, 32-bit PCM)</button>
+            <button className="format-btn" id="format-flac" onClick={() => handleFormatSelect("flac")}>FLAC (384kHz, 32-bit PCM)</button>
             <button className="format-cancelbtn" id="format-cancel" onClick={() => setShowFormatModal(false)}>Cancel</button>
           </div>
         </div>
       )}
       {searchResults.length > 0 && (
         <div className="search-body">
-          <h2 className="search-body-title">Search Results</h2>
+          <div className='search-body-title-section'>
+            <h2 className="search-body-title">Search Results</h2>
+            <video className='gif3' controls='' autoPlay={true} loop muted >
+                <source src={ratdance} type="video/mp4" />
+            </video>
+          </div>
           <ul className="result-list">
             {searchResults.map((video, index) => (
               <li
@@ -464,10 +540,10 @@ function App() {
                       disabled={convertingVideos.has(video.id)}
                       className="result-submit-btn"
                       id={`choose-btn-${video.id}`}
-                      // onClick={() => handleConvert(video.url, video.id)}
-                      // disabled={convertingVideos.has(video.id)}
-                      // className="result-submit-btn"
-                      // id={`choose-btn-${video.id}`}
+                    // onClick={() => handleConvert(video.url, video.id)}
+                    // disabled={convertingVideos.has(video.id)}
+                    // className="result-submit-btn"
+                    // id={`choose-btn-${video.id}`}
                     >
                       {convertingVideos.has(video.id) ? "Converting..." : "Choose"}
                     </button>
