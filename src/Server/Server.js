@@ -463,15 +463,15 @@ app.post("/convert", async (req, res) => {
         --audio-format wav \
         -o "${tempOutput}" \
         "https://www.youtube.com/watch?v=${videoId}"`;
-    console.time("yt-dlp Duration");
-    console.log(`▶️ Starting yt-dlp: ${ytDlpCmd}`);
-    const { stdout: ytDlpOutput, stderr: ytDlpError } = await execPromise(ytDlpCmd, { timeout: 300000 });
-    console.timeEnd("yt-dlp Duration");
-    console.log(`✅ yt-dlp stdout: ${ytDlpOutput}`);
-    if (ytDlpError) {
-      console.error(`⚠️ yt-dlp stderr: ${ytDlpError}`);
+      console.time("yt-dlp Duration");
+      console.log(`▶️ Starting yt-dlp: ${ytDlpCmd}`);
+      const { stdout: ytDlpOutput, stderr: ytDlpError } = await execPromise(ytDlpCmd, { timeout: 300000 });
+      console.timeEnd("yt-dlp Duration");
+      console.log(`✅ yt-dlp stdout: ${ytDlpOutput}`);
+      if (ytDlpError) {
+        console.error(`⚠️ yt-dlp stderr: ${ytDlpError}`);
+      }
     }
-  }
 
     if (!fs.existsSync(tempOutput)) {
       throw new Error(`Temporary WAV file not found: ${tempOutput}`);
@@ -503,8 +503,8 @@ app.post("/convert", async (req, res) => {
     const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
 
-    const eqFilter2 = "equalizer=f=60:t=q:w=0.7:g=6,equalizer=f=250:t=q:w=1:g=6,equalizer=f=1000:t=q:w=0.5:g=4,equalizer=f=2000:t=q:w=1:g=4,equalizer=f=4000:t=q:w=1:g=4,equalizer=f=8000:t=q:w=1:g=4";
-    const compLimitFilter2 = "volume=4,dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14";
+    const eqFilter2 = "equalizer=f=60:t=q:w=1.5:g=6,equalizer=f=120:t=q:w=1.5:g=5,equalizer=f=250:t=q:w=1:g=5,equalizer=f=500:t=q:w=0.7:g=3,equalizer=f=1000:t=q:w=0.5:g=3,equalizer=f=1200:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=3,equalizer=f=8000:t=q:w=1:g=2";
+    const compLimitFilter2 = "volume=8,dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-16:TP=-1:LRA=11";
     const optionalEffects2 = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     const fullAudioFilter2 = `${eqFilter2},${compLimitFilter2}${noiseFilter}${optionalEffects2}`;
 
@@ -522,8 +522,8 @@ app.post("/convert", async (req, res) => {
     const bitrate = "4000k";
     if (format === "mp3") {
       console.log("Processing MP3 conversion")
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a mp3 -b:a ${bitrate} -ar 48000 -ac 2 -sample_fmt s32p -f mp3 "${finalOutput}"`;
-    }else if (format === "mp4") {
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter2}" -c:a mp3 -b:a ${bitrate} -ar 48000 -ac 2 -sample_fmt s32p -f mp3 "${finalOutput}"`;
+    } else if (format === "mp4") {
       // console.log("Processing MP4A conversion")
       // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
       if (req.body.includeVideo === true) {
@@ -542,10 +542,10 @@ app.post("/convert", async (req, res) => {
     } else if (format === "m4a") {
       console.log("Processing M4A conversion");
       ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a alac -ar 384000 -ac 2 -sample_fmt s32p -vn "${finalOutput}"`;
-    // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
+      // ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -c:a aac -b:a ${bitrate} -ar 96000 -ac 2 -vn "${finalOutput}"`;
     } else if (format === "wav") {
       console.log("Processing WAV conversion");
-      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -ac 2 -sample_fmt s32 -c:a pcm_s32le -vn "${finalOutput}"`;
+      ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter2}" -ar 384000 -ac 2 -sample_fmt s32 -c:a pcm_s32le -vn "${finalOutput}"`;
     } else if (format === "flac") {
       console.log("Processing FLAC conversion");
       ffmpegCmd = `/opt/homebrew/bin/ffmpeg -y -i "${tempOutput}" -af "${fullAudioFilter}" -ar 384000 -ac 2 -sample_fmt s32 -c:a flac -vn "${finalOutput}"`;
@@ -580,7 +580,7 @@ app.post("/convert", async (req, res) => {
       console.log(`🗑️ Removing temporary video file: ${tempVideoOutput}`);
       fs.unlinkSync(tempVideoOutput);
     }
-   if (enhancedAudioOutput && fs.existsSync(enhancedAudioOutput)) {
+    if (enhancedAudioOutput && fs.existsSync(enhancedAudioOutput)) {
       console.log(`🗑️ Removing enhanced audio file: ${enhancedAudioOutput}`);
       fs.unlinkSync(enhancedAudioOutput);
     }
