@@ -3,7 +3,6 @@ import axios from "axios";
 import oiia from './asset/oiia.gif';
 import sirendog from './asset/sirendog.mp4';
 import ratdance from './asset/ratdance.mp4';
-import bgm from './asset/bgm.mp3';
 
 import './App.css';
 
@@ -355,23 +354,23 @@ function App() {
   }, [notifications]);
 
   // Handle playing background music
-  const handlePlayMusic = () => {
-    if (audioRef.current) {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(err => {
-        console.error("Play error:", err);
-        alert("Failed to play music. Please ensure the audio file is accessible or try again.");
-      });
-    }
-  };
+  // const handlePlayMusic = () => {
+  //   if (audioRef.current) {
+  //     audioRef.current.play().then(() => setIsPlaying(true)).catch(err => {
+  //       console.error("Play error:", err);
+  //       alert("Failed to play music. Please ensure the audio file is accessible or try again.");
+  //     });
+  //   }
+  // };
 
   // Handle stopping background music
-  const handleStopMusic = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0; // Reset to start
-      setIsPlaying(false);
-    }
-  };
+  // const handleStopMusic = () => {
+  //   if (audioRef.current) {
+  //     audioRef.current.pause();
+  //     audioRef.current.currentTime = 0; // Reset to start
+  //     setIsPlaying(false);
+  //   }
+  // };
 
   // // Auto-play after 1 second
   // useEffect(() => {
@@ -386,7 +385,7 @@ function App() {
       <div className="header">
         <div className='title'>
           <h1 className="title1">🎧 Hi-Res audio converter</h1>
-          <audio ref={audioRef} src={bgm} loop controls={false} />
+          {/* <audio ref={audioRef} src={bgm} loop controls={false} />
           {!isPlaying ? (
             <button onClick={handlePlayMusic} className="play-btn">
               Play
@@ -395,10 +394,9 @@ function App() {
             <button onClick={handleStopMusic} className="stop-btn">
               Stop
             </button>
-          )}
+          )} */}
         </div>
         <div className='up-body'>
-          <img className='gif' src={oiia} alt="loading..." />
           <div className="download">
             <input
               type="text"
@@ -427,9 +425,6 @@ function App() {
               )}
             </div>
           </div>
-          <video className='gif2' controls='' autoPlay={true} loop muted >
-            <source src={sirendog} type="video/mp4" />
-          </video>
         </div>
       </div>
       {notifications.length > 0 && (
@@ -505,9 +500,17 @@ function App() {
         <div className="search-body">
           <div className='search-body-title-section'>
             <h2 className="search-body-title">Search Results</h2>
-            <video className='gif3' controls='' autoPlay={true} loop muted >
+            <div className='animate'>
+              <img className='gif' src={oiia} alt="loading..." />
+              {showPreview ? (<video className='gif3' controls='' autoPlay={true} loop muted >
                 <source src={ratdance} type="video/mp4" />
-            </video>
+              </video>) : (<video className='gif3' controls='' autoPlay={true} loop >
+                <source src={ratdance} type="video/mp4" />
+              </video>)}
+              <video className='gif2' controls='' autoPlay={true} loop muted >
+                <source src={sirendog} type="video/mp4" />
+              </video>
+            </div>
           </div>
           <ul className="result-list">
             {searchResults.map((video, index) => (

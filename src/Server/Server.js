@@ -503,7 +503,7 @@ app.post("/convert", async (req, res) => {
     const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
 
-    const eqFilter2 = "equalizer=f=60:t=q:w=1.5:g=6,equalizer=f=120:t=q:w=1.5:g=5,equalizer=f=250:t=q:w=1:g=5,equalizer=f=500:t=q:w=0.7:g=3,equalizer=f=1000:t=q:w=0.5:g=3,equalizer=f=1200:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=3,equalizer=f=8000:t=q:w=1:g=2";
+    const eqFilter2 = "equalizer=f=60:t=q:w=1.5:g=4,equalizer=f=250:t=q:w=1:g=4,equalizer=f=500:t=q:w=0.7:g=3,equalizer=f=1000:t=q:w=0.5:g=3,equalizer=f=1200:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=3,equalizer=f=8000:t=q:w=1:g=2";
     const compLimitFilter2 = "volume=8,dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-16:TP=-1:LRA=11";
     const optionalEffects2 = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     const fullAudioFilter2 = `${eqFilter2},${compLimitFilter2}${noiseFilter}${optionalEffects2}`;
