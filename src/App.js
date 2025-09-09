@@ -192,7 +192,7 @@ function App() {
       setNotifications(prev => prev.map(n =>
         n.id === notificationId ? { ...n, isLoading: false, status: "failed", error: err.code === 'ECONNABORTED' ? 'Connection timed out' : (err.response?.data?.details || err.response?.data?.error || err.message) } : n
       ));
-      alert(`Error converting video: ${err.code === 'ECONNABORTED' ? 'Connection timed out' : (err.response?.data?.details || err.response?.data?.error || err.message)}${err.response?.data?.receivedUrl ? ` (URL: ${err.response?.data?.receivedUrl})` : ''}`);
+      // alert(`Error converting video: ${err.code === 'ECONNABORTED' ? 'Connection timed out' : (err.response?.data?.details || err.response?.data?.error || err.message)}${err.response?.data?.receivedUrl ? ` (URL: ${err.response?.data?.receivedUrl})` : ''}`);
     } finally {
       setLoading(false);
       setConvertingVideos(prev => {

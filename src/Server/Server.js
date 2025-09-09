@@ -363,6 +363,7 @@ app.post("/convert", async (req, res) => {
     return res.status(400).json({ error: "Invalid YouTube URL format" });
   }
   const videoId = idMatch[1];
+  const standardizedUrl = `https://www.youtube.com/watch?v=${videoId}`; // Standardize to www.youtube.com
 
   const getTitleCmd = `/opt/homebrew/bin/yt-dlp --get-title "https://www.youtube.com/watch?v=${videoId}"`;
   let title;
@@ -401,8 +402,9 @@ app.post("/convert", async (req, res) => {
         --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
         --restrict-filenames \
         --merge-output-format mp4 \
+        --force-ipv4 \
         -o "${tempVideoOutput}" \
-        "https://www.youtube.com/watch?v=${videoId}"`;
+        "${standardizedUrl}"`;
       console.time("yt-dlp Duration");
       console.log(`▶️ Starting yt-dlp for video: ${ytDlpCmd}`);
       const { stdout: ytDlpOutput, stderr: ytDlpError } = await execPromise(ytDlpCmd, { timeout: 300000 });
@@ -429,8 +431,11 @@ app.post("/convert", async (req, res) => {
         --restrict-filenames \
         --postprocessor-args "FFmpegExtractAudio:-c:a pcm_f32le -ar 384000 -sample_fmt s32 -ac 2" \
         --audio-format wav \
+        --force-ipv4 \
+        --ignore-errors \
+        --abort-on-error \
         -o "${tempOutput}" \
-        "https://www.youtube.com/watch?v=${videoId}"`;
+        "${standardizedUrl}"`;
       console.time("yt-dlp Duration");
       console.log(`▶️ Starting yt-dlp: ${ytDlpCmd}`);
       const { stdout: ytDlpOutput, stderr: ytDlpError } = await execPromise(ytDlpCmd, { timeout: 300000 });
