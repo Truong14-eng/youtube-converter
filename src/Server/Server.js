@@ -181,38 +181,6 @@ app.post("/preview", async (req, res) => {
   res.status(200).json({ videoId });
 });
 
-// // ✅ /convert route
-// app.post("/convert", async (req, res) => {
-//   const videoUrl = req.body.url;
-
-//   if (!videoUrl || typeof videoUrl !== "string") {
-//     console.error("Invalid URL received:", videoUrl);
-//     return res.status(400).json({ error: "Missing or invalid URL" });
-//   }
-
-//   const urlPattern = /^(https?:\/\/)(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+$/;
-//   if (!urlPattern.test(videoUrl)) {
-//     console.error("URL does not match YouTube pattern:", videoUrl);
-//     return res.status(400).json({ error: "Invalid YouTube or YouTube Music URL", receivedUrl: videoUrl });
-//   }
-
-//   const downloadsDir = path.resolve(os.homedir(), "Downloads");
-//   const timestamp = Date.now();
-
-//   // Step 1: Get video title from yt-dlp
-//   const getTitleCmd = `/opt/homebrew/bin/yt-dlp --get-title "${videoUrl.replace(/"/g, '\\"').replace(/\$/g, '\\$')}"`;
-//   let title;
-//   try {
-//     console.log(`▶️ Fetching title: ${getTitleCmd}`);
-//     const { stdout } = await execPromise(getTitleCmd);
-//     title = stdout.trim().replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').substring(0, 150);
-//     if (!title) {
-//       throw new Error("No title returned by yt-dlp");
-//     }
-//   } catch (err) {
-//     console.error(`❌ Failed to fetch title: ${err.message}`);
-//     title = `converted_${timestamp}`;
-//   }
 //   // const outputTemplate = path.join(downloadsDir, "%(title).150s.%(ext)s");
 //   const tempOutput = path.join(downloadsDir, `${title}_temp.wav`);
 //   const finalOutput = path.join(downloadsDir, `${title}.mp4`);
@@ -507,16 +475,6 @@ app.post("/convert", async (req, res) => {
     const compLimitFilter2 = "volume=8,dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-16:TP=-1:LRA=11";
     const optionalEffects2 = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
     const fullAudioFilter2 = `${eqFilter2},${compLimitFilter2}${noiseFilter}${optionalEffects2}`;
-
-    // const eqFilter = "volume=0dB,equalizer=f=250:t=q:w=1:g=2,equalizer=f=1000:t=q:w=1:g=2,equalizer=f=2000:t=q:w=1:g=2,equalizer=f=1500:t=q:w=0.3:g=4,equalizer=f=4000:t=q:w=1:g=2,equalizer=f=8000:t=q:w=1:g=-2"; // +2 dB for all, +2 dB for vocals at 1500 Hz
-    // const compLimitFilter = "dynaudnorm=p=0.95:m=10,acompressor=ratio=8:threshold=-10dB:attack=5:release=50,alimiter=limit=0.1,loudnorm=I=-23:TP=-1:LRA=14"; // Master clipper and limiter
-    // const optionalEffects = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-15dB:roomsize=0.9,extrastereo=m=0.9" : "";
-    // const fullAudioFilter = `${eqFilter},${compLimitFilter}${noiseFilter}${optionalEffects}`;
-
-    // const eqFilter2 = "equalizer=f=250:t=q:w=0.5:g=1,equalizer=f=500:t=q:w=0.7:g=1,equalizer=f=2000:t=q:w=0.5:g=2,equalizer=f=4000:t=q:w=0.7:g=2,equalizer=f=8000:t=q:w=0.5:g=1"; // +1dB for all, +2dB for vocals
-    // const compLimitFilter2 = "volume=1.122,acompressor=ratio=8:threshold=-10dB:attack=10:release=100,dynaudnorm=p=0.95:m=10,alimiter=limit=0.5,loudnorm=I=-16:TP=-1:LRA=15"; // +1dB volume, master clipper, limiter
-    // const optionalEffects2 = enhanceOptions.reverb || enhanceOptions.widening ? ",areverb=wet_gain=-20dB:roomsize=0.8,extrastereo=m=0.8" : "";
-    // const fullAudioFilte2r = `${eqFilter2},${compLimitFilter2}${noiseFilter2}${optionalEffects2}`;
 
     let ffmpegCmd;
     const bitrate = "4000k";

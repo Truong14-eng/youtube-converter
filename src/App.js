@@ -206,52 +206,6 @@ function App() {
     }
   };
 
-  //   // Handle convert for a specific video
-  //   const handleConvert = async (videoUrl, videoId = null) => {
-  //     if (!videoUrl || typeof videoUrl !== "string") {
-  //       console.error("Invalid video URL:", videoUrl);
-  //       alert(`Invalid video URL: ${videoUrl === undefined ? "URL is undefined" : "URL is invalid"}`);
-  //       setLoading(false);
-  //       setConvertingVideos(prev => {
-  //         const newSet = new Set(prev);
-  //         if (videoId) newSet.delete(videoId);
-  //         return newSet;
-  //       });
-  //       setClosing(true);
-  //       setTimeout(() => {
-  //         setClosing(false);
-  //       }, 300);
-  //       setNotifications(prev => prev.filter(n => n.videoUrl !== videoUrl));
-  //       return;
-  //     }
-  //     console.log("Converting URL:", videoUrl);
-  //     const notificationId = generateNotificationId();
-  //     setNotifications(prev => [...prev, { id: notificationId, videoUrl, isLoading: true }]);
-  //     if (videoId) {
-  //       setConvertingVideos(prev => new Set([...prev, videoId]));
-  //     } else {
-  //       setLoading(true);
-  //     }
-  //     setFilePath("");
-  //     setClosing(false);
-  //     try {
-  //       const res = await axios.post("http://localhost:5050/convert", { url: videoUrl });
-  //       setNotifications(prev => prev.map(n =>
-  //         n.id === notificationId ? { ...n, isLoading: false, filePath: res.data.filePath } : n
-  //       ));
-  //     } catch (err) {
-  //       console.error("Convert error:", err);
-  //       alert(`Error converting video: ${err.response?.data?.details || err.message}${err.response?.data?.receivedUrl ? ` (URL: ${err.response?.data?.receivedUrl})` : ''}`);
-  //       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-  //     } finally {
-  //       setLoading(false);
-  //       setConvertingVideos(prev => {
-  //         const newSet = new Set(prev);
-  //         if (videoId) newSet.delete(videoId);
-  //         return newSet;
-  //       })};
-  //   };
-
   // Handle preview when clicking thumbnail
   const handlePreview = async (videoUrl, videoId, title) => {
     try {
@@ -543,10 +497,6 @@ function App() {
                       disabled={convertingVideos.has(video.id)}
                       className="result-submit-btn"
                       id={`choose-btn-${video.id}`}
-                    // onClick={() => handleConvert(video.url, video.id)}
-                    // disabled={convertingVideos.has(video.id)}
-                    // className="result-submit-btn"
-                    // id={`choose-btn-${video.id}`}
                     >
                       {convertingVideos.has(video.id) ? "Converting..." : "Choose"}
                     </button>
